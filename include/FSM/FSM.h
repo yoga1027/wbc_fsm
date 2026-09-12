@@ -7,6 +7,7 @@
 #include "FSM/State_Loco.h"
 #include "FSM/State_Amp.h"
 #include "FSM/State_MJAmp.h"
+#include "FSM/State_MJAmpRecovery.h"
 #include "FSM/State_WBC.h"
 #include "common/enumClass.h"
 #include "control/CtrlComponents.h"
@@ -19,6 +20,7 @@ struct FSMStateList{
     State_WBC *wbc;
     State_AMP *amp;
     State_MJAMP *mjamp;
+    State_MJAMP_RECOVERY *mjampRecovery;
     void deletePtr(){
         delete invalid;
         delete passive;
@@ -27,6 +29,7 @@ struct FSMStateList{
         delete wbc;
         delete amp; 
         delete mjamp;
+        delete mjampRecovery;
     }
 };
 

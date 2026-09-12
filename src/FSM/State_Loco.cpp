@@ -193,6 +193,11 @@ void State_Loco::_action_compute()
 void State_Loco::enter()
 {
     _terminate_flag = false;
+    std::fill(_action.begin(), _action.end(), 0.0f);
+    std::fill(_h_state_.begin(), _h_state_.end(), 0.0f);
+    std::fill(_c_state_.begin(), _c_state_.end(), 0.0f);
+    _vCmdBody.setZero();
+    _dYawCmd = 0.0;
     for (int i = 0; i < NUM_DOF; i++)
     {
         _lowCmd->motorCmd[i].mode = 10;
@@ -247,6 +252,10 @@ FSMStateName State_Loco::checkChange()
     {
         std::cout << "LocoMode terminate" << std::endl;
         return FSMStateName::PASSIVE;
+    }
+    else if (_lowState->userCmd == UserCommand::R2_X)
+    {
+        return FSMStateName::MJAMP_RECOVERY;
     }
     else if (_lowState->userCmd == UserCommand::R1_UP)
     { 

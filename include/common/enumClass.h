@@ -31,6 +31,7 @@ enum class UserCommand
     R2_UP, //high speed mode
     R2_DOWN, //low speed mode
     R2_B, // back to loco from amp
+    R2_X, // independent MJAMP recovery policy
     
 };
 
@@ -63,6 +64,7 @@ enum class FSMStateName{
     WBCright,
     AMP,
     MJAMP,
+    MJAMP_RECOVERY,
 };
 
 #endif  // ENUMCLASS_H

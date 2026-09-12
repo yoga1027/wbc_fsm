@@ -10,6 +10,7 @@ FSM::FSM(CtrlComponents *ctrlComp)
     _stateList.loco = new State_Loco(_ctrlComp);
     _stateList.amp = new State_AMP(_ctrlComp);
     _stateList.mjamp = new State_MJAMP(_ctrlComp);
+    _stateList.mjampRecovery = new State_MJAMP_RECOVERY(_ctrlComp);
     _stateList.wbc = new State_WBC(_ctrlComp);
     initialize(); 
 }
@@ -25,6 +26,7 @@ void FSM::initialize(){
     _mode = FSMMode::NORMAL;  
 
     std::cout<<"Press **start** to enter position control mode..."<<std::endl;
+    std::cout<<"Or press **R2+X** to enter MJAMP_RECOVERY directly from the current pose."<<std::endl;
 }
 
 void FSM::run(){
@@ -54,6 +56,12 @@ void FSM::run(){
         absoluteWait(_startTime, (long long)(_ctrlComp->dt * 1000000));  
     }catch (const std::exception& e) {
         std::cerr << std::endl << "Caught exception: " << e.what() << std::endl;
+        if (_currentState->_stateName == FSMStateName::MJAMP_RECOVERY) {
+            // SELECT/exception ends the main loop before its next sendRecv().
+            // Publish damping now instead of leaving the last policy target active.
+            _stateList.passive->enter();
+            _ctrlComp->sendRecv();
+        }
         _ctrlComp->exitFlag = true;
     }
 }
@@ -78,6 +86,8 @@ FSMState* FSM::getNextState(FSMStateName stateName){
         return _stateList.amp;
     case FSMStateName::MJAMP:
         return _stateList.mjamp;
+    case FSMStateName::MJAMP_RECOVERY:
+        return _stateList.mjampRecovery;
     default:
         return _stateList.invalid;
         break;

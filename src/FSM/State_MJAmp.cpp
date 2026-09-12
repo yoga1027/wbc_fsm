@@ -249,6 +249,10 @@ void State_MJAMP::enter()
 {
     _high_speed_mode = false;
     _terminate_flag = false;
+    std::fill(_action.begin(), _action.end(), 0.0f);
+    std::fill(_robot_state_obs_buf.begin(), _robot_state_obs_buf.end(), 0.0f);
+    std::fill(_vCmdBody.begin(), _vCmdBody.end(), 0.0f);
+    std::fill(_vCmdBodyPast.begin(), _vCmdBodyPast.end(), 0.0f);
     for (int i = 0; i < NUM_DOF; i++)
     {
         _lowCmd->motorCmd[i].mode = 10;
@@ -297,6 +301,10 @@ FSMStateName State_MJAMP::checkChange()
     {
         std::cout << "MJAMP Mode terminate" << std::endl;
         return FSMStateName::PASSIVE;
+    }
+    else if (_lowState->userCmd == UserCommand::R2_X)
+    {
+        return FSMStateName::MJAMP_RECOVERY;
     }
     else if (_lowState->userCmd == UserCommand::R1_UP)
     {

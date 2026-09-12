@@ -4,6 +4,8 @@
 #include "interface/IOInterface.h"
 #include <string>
 #include "common/gamepad.hpp"
+#include "interface/UserCommandMapping.h"
+#include <atomic>
 #include <unitree/robot/channel/channel_publisher.hpp>
 #include <unitree/robot/channel/channel_subscriber.hpp>
 
@@ -37,7 +39,8 @@ private:
     Gamepad gamepad_;
     uint8_t mode_machine_;
     int counter_;
-    UserCommand userCmd_;
+    std::atomic<UserCommand> userCmd_{UserCommand::NONE};
+    RecoveryEntryLatch recoveryEntryLatch_;
     UserValue userValue_;
 
     void LowStateHandler(const void *message);

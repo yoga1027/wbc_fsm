@@ -174,6 +174,48 @@ controller/
 - **L2+B**：切换到 Passive 模式
 - **SELECT**：退出程序
 
+### 独立恢复策略 MJAMP_RECOVERY
+
+项目保留两套独立的 mjlab 策略：
+
+| 状态 | 模型 | 配置 |
+| --- | --- | --- |
+| `MJAMP` | `model/loco/Unitree-G1-AMP-Flat_model_30000.onnx` | `config/mjamp.json` |
+| `MJAMP_RECOVERY` | `model/loco/Unitree-G1-AMP-Flat_model_40000.onnx` | `config/mjamp_recovery.json` |
+
+恢复模型来自训练运行 `2026-05-09_16-23-30_3090_g1_amp_get_up_1_12288/export/`，
+SHA256：`4a3da35454de610beb27c3bb985ccd9688ba70ced63aa3916eacb4cd4f93ac29`。
+旧 `AMP` 和 `LOCO` 状态也继续保留。
+
+| 当前状态 | 按键 | 行为 |
+| --- | --- | --- |
+| `PASSIVE`、`FIXEDSTAND`、`MJAMP`、`LOCO` | `R2+X` | 进入 `MJAMP_RECOVERY` |
+| `MJAMP_RECOVERY` | `R2+A` | 满足切换门槛后进入原有 `MJAMP` |
+| `MJAMP_RECOVERY` | `R2+B` | 满足切换门槛后进入原有 `LOCO` |
+| `MJAMP_RECOVERY` | `L2+B` | 返回阻尼状态 |
+| `MJAMP_RECOVERY` | `R2+↑` / `R2+↓` | 切换恢复策略的快 / 慢速度范围，默认慢速 |
+| `MJAMP_RECOVERY` | `SELECT` | 发送阻尼命令并退出程序 |
+
+倒地测试时，从 `PASSIVE` 直接按 `R2+X`，无需先按 `START` 经过固定站姿插值。
+恢复状态以当前姿态填充四帧历史，上一帧动作和指令清零，第一帧直接由策略计算。
+进入后将左右摇杆回中，才启用速度指令；起身后可以继续使用恢复策略，或手动切回旧策略。
+不会自动切回行走状态。`R2+X` 每次按下只触发一次，故障回到阻尼后须松开再按。
+
+切回旧策略的默认门槛为连续 0.5 秒倾角小于 20°、机体角速度模长小于 0.5 rad/s。
+对应配置为 `switch_max_tilt_rad`、`switch_max_angular_velocity`、`switch_hold_seconds`。
+门槛未满足时会提示并拒绝本次切换；请松开组合键，等待稳定后重新按下。
+这些是待闭环仿真调整的初始值，仅检查姿态和角速度，不能识别坐姿或确认脚底支撑。
+
+恢复状态默认 `enable_orientation_exit: false`，允许策略在大倾角下运行。
+若启用该选项，超过 `orientation_exit_angle_rad` 会进入阻尼状态。
+观测或动作非有限、IMU 四元数无效、推理异常同样触发阻尼退出。
+`clip_observations` / `clip_actions` 为 `null` 表示不裁剪，与本次训练配置一致。
+策略周期固定为 0.02 秒（50 Hz），使用 384 维原始观测和 29 维动作；归一化包含在 ONNX 内。
+
+此实现已通过离线状态测试和 Python/C++ 数值对照；离线倒地观测推理不代表闭环起身成功。
+起身成功率、不同初始姿态以及切回旧策略的实际稳定性需要在 MuJoCo 中验证。
+离线验证命令见 [tests/README.md](tests/README.md)。
+
 ### 操作步骤
 
 1. 运行程序后，机器人处于**阻尼保护模式**

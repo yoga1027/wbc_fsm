@@ -54,6 +54,9 @@ FSMStateName State_Passive::checkChange(){
         throw std::runtime_error("exit..");
         return FSMStateName::PASSIVE;
     }
+    else if (_lowState->userCmd == UserCommand::R2_X) {
+        return FSMStateName::MJAMP_RECOVERY;
+    }
     else{
         return FSMStateName::PASSIVE;
     }

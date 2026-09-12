@@ -85,7 +85,7 @@ void IOSDK::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
     }
     state->imu.quaternion[3] = _lowState.imu.quaternion[3];
 
-    state->userCmd = userCmd_;
+    state->userCmd = recoveryEntryLatch_.sample(userCmd_);
     state->userValue = userValue_;
 }
 
@@ -131,59 +131,7 @@ void IOSDK::LowStateHandler(const void *message)
         mode_machine_ = low_state.mode_machine();
     }
 
-    if(gamepad_.start.pressed)
-    {
-        userCmd_ = UserCommand::START;          
-    }
-    if(gamepad_.select.pressed)
-    {
-        userCmd_ = UserCommand::SELECT; 
-    }
-
-    if(gamepad_.R2.pressed)
-    {
-        userCmd_ = UserCommand::R2;
-    }
-    if (gamepad_.L2.pressed)
-    {
-        userCmd_ = UserCommand::L2;
-    }
-    if(gamepad_.R1.pressed)
-    {
-        userCmd_ = UserCommand::R1;
-    }
-    if (gamepad_.R2.pressed && gamepad_.A.pressed)
-    {
-        userCmd_ = UserCommand::R2_A;
-    }
-    if (gamepad_.L2.pressed && gamepad_.B.pressed)
-    {
-        userCmd_ = UserCommand::L2_B;
-    }
-    if (gamepad_.R1.pressed && gamepad_.up.pressed)
-    {
-        userCmd_ = UserCommand::R1_UP;
-    }
-    if (gamepad_.R1.pressed && gamepad_.left.pressed)
-    {
-        userCmd_ = UserCommand::R1_LEFT;
-    }
-    if (gamepad_.R1.pressed && gamepad_.right.pressed)
-    {
-        userCmd_ = UserCommand::R1_RIGHT;
-    }
-    if (gamepad_.R2.pressed && gamepad_.up.pressed)
-    {
-        userCmd_ = UserCommand::R2_UP;
-    }
-    if (gamepad_.R2.pressed && gamepad_.down.pressed)
-    {
-        userCmd_ = UserCommand::R2_DOWN;
-    }
-    if (gamepad_.R2.pressed && gamepad_.B.pressed)
-    {
-        userCmd_ = UserCommand::R2_B;
-    }
+    userCmd_ = userCommandFromGamepad(gamepad_);
 
     userValue_.lx = -gamepad_.lx;
     userValue_.ly = gamepad_.ly;
