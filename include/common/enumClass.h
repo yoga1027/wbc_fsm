@@ -32,6 +32,7 @@ enum class UserCommand
     R2_DOWN, //low speed mode
     R2_B, // back to loco from amp
     R2_X, // independent MJAMP recovery policy
+    R2_Y, // start recovery policy after damping wait
     
 };
 

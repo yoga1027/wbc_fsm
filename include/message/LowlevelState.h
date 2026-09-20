@@ -68,6 +68,8 @@ struct LowlevelState
     IMU imu;
     MotorState motorState[29];
     UserCommand userCmd;
+    // Physical held command before one-shot entry filtering; NONE means released.
+    UserCommand heldUserCmd = UserCommand::NONE;
     UserValue userValue;
 
 

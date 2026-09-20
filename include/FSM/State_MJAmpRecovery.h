@@ -18,6 +18,7 @@ public:
     FSMStateName checkChange() override;
 
 private:
+    enum class Phase { WAITING, RUNNING };
     static constexpr int kNumDof = 29;
     static constexpr int kFrameSize = 96;
     static constexpr int kHistoryLength = 4;
@@ -45,11 +46,14 @@ private:
     bool _highSpeed = false;
     bool _commandArmed = false;
     bool _terminate = false;
-    bool _firstRun = true;
+    Phase _phase = Phase::WAITING;
+    bool _startReleased = false;
     UserCommand _lastUserCommand = UserCommand::NONE;
 
     void _loadConfig();
     void _loadPolicy();
+    void _resetPolicyBuffers();
+    void _startPolicy();
     void _updateCommand();
     std::array<float, kFrameSize> _readFrame();
     void _inferAndWriteCommand();

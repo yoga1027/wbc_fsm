@@ -85,7 +85,9 @@ void IOSDK::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
     }
     state->imu.quaternion[3] = _lowState.imu.quaternion[3];
 
-    state->userCmd = recoveryEntryLatch_.sample(userCmd_);
+    const auto heldCommand = userCmd_.load();
+    state->heldUserCmd = heldCommand;
+    state->userCmd = recoveryEntryLatch_.sample(heldCommand);
     state->userValue = userValue_;
 }
 

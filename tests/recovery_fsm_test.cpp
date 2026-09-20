@@ -1,4 +1,5 @@
 #include "FSM/FSM.h"
+#include "interface/UserCommandMapping.h"
 #include <limits>
 #include <stdexcept>
 
@@ -10,10 +11,13 @@ public:
     LowlevelState sample{};
     LowlevelCmd lastSent{};
     int sends = 0;
+    RecoveryEntryLatch entryLatch;
     void sendRecv(const LowlevelCmd *cmd, LowlevelState *state) override
     {
         lastSent = *cmd;
         *state = sample;
+        state->heldUserCmd = sample.userCmd;
+        state->userCmd = entryLatch.sample(sample.userCmd);
         ++sends;
     }
 };
@@ -41,15 +45,28 @@ int main()
             require(!ctrl.exitFlag, "Unexpected FSM exit");
         };
         step(UserCommand::R2_X);
+        step(UserCommand::R2_X);
+        step(UserCommand::R2_X);
+        step(UserCommand::R2_Y);
+        require(ctrl.lowCmd->motorCmd[0].Kp == 0 && io.lastSent.motorCmd[0].Kp == 0,
+                "Held entry/start activated recovery without release");
         step(UserCommand::NONE);
+        for (int i = 0; i < 30; ++i) {
+            step(i % 2 ? UserCommand::R2_A : UserCommand::R2_B);
+            require(ctrl.lowCmd->motorCmd[0].Kp == 0 && io.lastSent.motorCmd[0].Kp == 0,
+                    "Waiting emitted policy commands or switched to an old policy");
+        }
+        step(UserCommand::R2_Y);
         require(ctrl.lowCmd->motorCmd[0].Kp > 99 && ctrl.lowCmd->motorCmd[0].Kp < 100,
-                "PASSIVE did not enter recovery directly");
+                "Fresh R2+Y did not start recovery");
         for (int i = 0; i < 28; ++i) step(UserCommand::NONE);
         step(UserCommand::R2_B);
         step(UserCommand::NONE);
         require(ctrl.lowCmd->motorCmd[0].Kp == 200, "Recovery did not switch to LOCO");
         step(UserCommand::R2_X);
         step(UserCommand::NONE);
+        require(ctrl.lowCmd->motorCmd[0].Kp == 0, "Recovery re-entry skipped waiting");
+        step(UserCommand::R2_Y);
         require(ctrl.lowCmd->motorCmd[0].Kp < 100 && ctrl.lowCmd->motorCmd[0].Kp > 99,
                 "LOCO did not return to recovery");
         io.sample.motorState[0].q = std::numeric_limits<float>::quiet_NaN();
@@ -60,7 +77,12 @@ int main()
                 "Fault damping was not sent on the next IO cycle");
         io.sample.motorState[0].q = 0;
         step(UserCommand::R2_X);
+        step(UserCommand::R2_Y);
+        step(UserCommand::R2_Y);
+        require(ctrl.lowCmd->motorCmd[0].Kp == 0, "Start held during re-entry was accepted");
         step(UserCommand::NONE);
+        step(UserCommand::R2_Y);
+        require(ctrl.lowCmd->motorCmd[0].Kp > 0, "Recovery did not restart after release");
         const int previousSends = io.sends;
         io.sample.userCmd = UserCommand::SELECT;
         fsm.run();

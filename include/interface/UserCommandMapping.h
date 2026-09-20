@@ -9,6 +9,7 @@ inline UserCommand userCommandFromGamepad(const unitree::common::Gamepad &pad)
     if (pad.select.pressed) return UserCommand::SELECT;
     if (pad.L2.pressed && pad.B.pressed) return UserCommand::L2_B;
     if (pad.R2.pressed && pad.X.pressed) return UserCommand::R2_X;
+    if (pad.R2.pressed && pad.Y.pressed) return UserCommand::R2_Y;
     if (pad.R2.pressed && pad.A.pressed) return UserCommand::R2_A;
     if (pad.R2.pressed && pad.B.pressed) return UserCommand::R2_B;
     if (pad.R2.pressed && pad.up.pressed) return UserCommand::R2_UP;

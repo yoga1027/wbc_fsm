@@ -26,7 +26,7 @@ void FSM::initialize(){
     _mode = FSMMode::NORMAL;  
 
     std::cout<<"Press **start** to enter position control mode..."<<std::endl;
-    std::cout<<"Or press **R2+X** to enter MJAMP_RECOVERY directly from the current pose."<<std::endl;
+    std::cout<<"Or press **R2+X** for recovery damping wait; release buttons, then **R2+Y** to start."<<std::endl;
 }
 
 void FSM::run(){

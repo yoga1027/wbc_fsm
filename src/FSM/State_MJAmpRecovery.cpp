@@ -221,7 +221,7 @@ void State_MJAMP_RECOVERY::_fail(const std::string &reason)
     _writeDamping();
 }
 
-void State_MJAMP_RECOVERY::enter()
+void State_MJAMP_RECOVERY::_resetPolicyBuffers()
 {
     _action.fill(0.0f);
     _observation.fill(0.0f);
@@ -229,23 +229,37 @@ void State_MJAMP_RECOVERY::enter()
     _previousCommand.fill(0.0f);
     _highSpeed = false;
     _commandArmed = false;
-    _terminate = false;
-    _firstRun = true;
     _stableSeconds = 0;
+}
+
+void State_MJAMP_RECOVERY::enter()
+{
+    _resetPolicyBuffers();
+    _terminate = false;
+    _phase = Phase::WAITING;
+    _startReleased = false;
     _lastUserCommand = _lowState->userCmd;
     _writeDamping();
-    try {
-        if (!std::isfinite(_ctrlComp->dt) || std::abs(_ctrlComp->dt - 0.02) > 1e-6)
-            throw std::runtime_error("Recovery policy requires dt = 0.02 s");
-        const auto frame = _readFrame();
-        for (int i = 0; i < kHistoryLength; ++i)
-            std::copy(frame.begin(), frame.end(), _observation.begin() + i * kFrameSize);
-        _stableSeconds = 0; // History backfill does not count toward switch readiness.
-        std::cout << "[MJAMP_RECOVERY] Entered from current pose; center sticks to enable commands."
-                  << std::endl;
-    } catch (const std::exception &error) {
-        _fail(error.what());
-    }
+    std::cout << "[MJAMP_RECOVERY] WAITING: damping only. Release buttons, then press R2+Y to start."
+              << std::endl;
+}
+
+void State_MJAMP_RECOVERY::_startPolicy()
+{
+    // The robot may have been repositioned while waiting. Initialize at activation,
+    // never reuse entry-time history or actions from a previous run.
+    _resetPolicyBuffers();
+    if (!std::isfinite(_ctrlComp->dt) || std::abs(_ctrlComp->dt - 0.02) > 1e-6)
+        throw std::runtime_error("Recovery policy requires dt = 0.02 s");
+    const auto frame = _readFrame();
+    for (int i = 0; i < kHistoryLength; ++i)
+        std::copy(frame.begin(), frame.end(), _observation.begin() + i * kFrameSize);
+    _stableSeconds = 0; // Waiting/backfill does not count toward switch readiness.
+    _inferAndWriteCommand(); // Commit RUNNING only after the first action is valid.
+    _phase = Phase::RUNNING;
+    _startReleased = false;
+    std::cout << "[MJAMP_RECOVERY] RUNNING: policy started from current pose; center sticks to enable commands."
+              << std::endl;
 }
 
 void State_MJAMP_RECOVERY::run()
@@ -256,14 +270,20 @@ void State_MJAMP_RECOVERY::run()
         return;
     }
     try {
-        // The first action uses precisely the zero-command history initialized in enter().
-        if (!_firstRun) {
-            _updateCommand();
-            const auto frame = _readFrame();
-            std::move(_observation.begin() + kFrameSize, _observation.end(), _observation.begin());
-            std::copy(frame.begin(), frame.end(), _observation.end() - kFrameSize);
+        if (_phase == Phase::WAITING) {
+            _writeDamping();
+            // userCmd alone is insufficient: held R2+X is filtered to NONE by IOSDK.
+            if (_lowState->heldUserCmd == UserCommand::NONE &&
+                _lowState->userCmd == UserCommand::NONE)
+                _startReleased = true;
+            if (_startReleased && _lowState->userCmd == UserCommand::R2_Y)
+                _startPolicy();
+            return;
         }
-        _firstRun = false;
+        _updateCommand();
+        const auto frame = _readFrame();
+        std::move(_observation.begin() + kFrameSize, _observation.end(), _observation.begin());
+        std::copy(frame.begin(), frame.end(), _observation.end() - kFrameSize);
         _inferAndWriteCommand();
     } catch (const std::exception &error) {
         _fail(error.what());
@@ -272,10 +292,9 @@ void State_MJAMP_RECOVERY::run()
 
 void State_MJAMP_RECOVERY::exit()
 {
-    _action.fill(0.0f);
-    _observation.fill(0.0f);
-    _command.fill(0.0f);
-    _previousCommand.fill(0.0f);
+    _resetPolicyBuffers();
+    _phase = Phase::WAITING;
+    _startReleased = false;
     std::cout << "[MJAMP_RECOVERY] Exiting recovery policy" << std::endl;
 }
 
@@ -286,6 +305,8 @@ FSMStateName State_MJAMP_RECOVERY::checkChange()
     _lastUserCommand = command;
     if (command == UserCommand::L2_B || _terminate) return FSMStateName::PASSIVE;
     if (command == UserCommand::SELECT) throw std::runtime_error("exit..");
+    // Do not bypass the explicit start via MJAMP/LOCO or count waiting as standing.
+    if (_phase == Phase::WAITING) return FSMStateName::MJAMP_RECOVERY;
     if (command == UserCommand::R2_UP) _highSpeed = true;
     if (command == UserCommand::R2_DOWN) _highSpeed = false;
     if (fresh && (command == UserCommand::R2_A || command == UserCommand::R2_B)) {
