@@ -1,5 +1,5 @@
 {
-    "model_path": "model/loco/Unitree-G1-AMP-Flat_model_40000.onnx",
+    "model_path": "model/amp_mjlab_recovery/Unitree-G1-AMP-Flat_model_11500.onnx",
     "vx_limit_min": -0.8,
     "vx_limit_max": 2.5,
     "vx_limit_min_slow": -0.8,
