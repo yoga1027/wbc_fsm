@@ -9,7 +9,7 @@
 
 struct MotorState
 {
-	unsigned int mode;
+	unsigned int mode = 0;
     float q;
     float dq;
     float ddq;
@@ -67,7 +67,7 @@ struct LowlevelState
 {
     IMU imu;
     MotorState motorState[29];
-    UserCommand userCmd;
+    UserCommand userCmd = UserCommand::NONE;
     // Physical held command before one-shot entry filtering; NONE means released.
     UserCommand heldUserCmd = UserCommand::NONE;
     UserValue userValue;

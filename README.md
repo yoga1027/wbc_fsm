@@ -80,10 +80,8 @@ Example configuration (`wbc.json`):
    set(ONNXRUNTIME_ROOT ${PROJECT_SOURCE_DIR}/onnxruntime-linux-x64-1.22.0)
    ```
 
-3. Configure the network interface in `controller/src/interface/IOSDK.cpp`:
-   ```cpp
-   ChannelFactory::Instance()->Init(1, "lo"); // lo for simulation
-   ```
+3. Select simulation using `--sim` (the default): DDS domain 1, interface `lo`.
+   No source edit is needed. Override the interface with `--interface <name>` if needed.
 
 4. Build the project:
    ```bash
@@ -114,7 +112,7 @@ Example configuration (`wbc.json`):
 6. Run the controller (in a new terminal):
    ```bash
    cd controller/build
-   ./wbc_fsm
+   ./wbc_fsm --sim
    ```
 
 ### Deploy on Real Robot
@@ -126,10 +124,8 @@ Example configuration (`wbc.json`):
    set(ONNXRUNTIME_ROOT ${PROJECT_SOURCE_DIR}/onnxruntime-linux-aarch64-1.22.0)
    ```
 
-3. Configure the network interface in `controller/src/interface/IOSDK.cpp`:
-   ```cpp
-   ChannelFactory::Instance()->Init(0, "eth0"); // eth0 for real robot
-   ```
+3. Identify the network interface connected to the robot. Hardware requires
+   `--real --interface <name>` and uses DDS domain 0; `lo` is rejected.
 
 4. Build the project:
    ```bash
@@ -140,8 +136,23 @@ Example configuration (`wbc.json`):
 
 5. Run the controller:
    ```bash
-   ./wbc_fsm
+   ./wbc_fsm --real --interface eth0
    ```
+
+Replace `eth0` with the actual robot interface. Models load before motion-service
+handoff. Hardware startup waits for valid feedback, checks/releases the stock
+motion service and confirms an empty service name with a successful query before
+sending any motor commands. RPC failures or exhausted retries abort startup.
+Simulation skips the service client entirely. `--help` does not initialize DDS.
+
+After the startup-ready message, the initial state is PASSIVE damping:
+`R2+X` enters recovery damping wait; release the buttons (including R2), then press
+`R2+Y` to start recovery. START is not required; it still selects the fixed pose.
+Support the robot during handoff: damping does not hold it upright.
+`L2+B` returns to damping. SELECT, Ctrl+C and SIGTERM attempt a final damping send;
+exiting does not automatically restart the stock motion service.
+Feedback freshness is checked at startup, not a runtime communication watchdog.
+See [the Chinese startup details](README_zh.md) and [offline tests](tests/README.md).
 
 ## Controls
 

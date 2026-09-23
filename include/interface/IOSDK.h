@@ -5,7 +5,11 @@
 #include <string>
 #include "common/gamepad.hpp"
 #include "interface/UserCommandMapping.h"
-#include <atomic>
+#include "interface/StartupOptions.h"
+#include <chrono>
+#include <condition_variable>
+#include <functional>
+#include <mutex>
 #include <unitree/robot/channel/channel_publisher.hpp>
 #include <unitree/robot/channel/channel_subscriber.hpp>
 
@@ -32,22 +36,29 @@ class IOSDK : public IOInterface
 {
 private:
     ChannelPublisherPtr<LowCmd_> lowcmd_publisher_;
-    ChannelSubscriberPtr<LowState_> lowstate_subscriber_;
     LowlevelCmd _lowCmd;
     LowlevelState _lowState;
     REMOTE_DATA_RX rx_;
     Gamepad gamepad_;
-    uint8_t mode_machine_;
-    int counter_;
-    std::atomic<UserCommand> userCmd_{UserCommand::NONE};
+    uint8_t mode_machine_ = 0;
+    UserCommand userCmd_ = UserCommand::NONE;
     RecoveryEntryLatch recoveryEntryLatch_;
     UserValue userValue_;
+    std::mutex stateMutex_;
+    std::condition_variable stateChanged_;
+    bool stateReady_ = false;
+    bool controlReady_ = false;
+    std::chrono::steady_clock::time_point lastStateTime_{};
+    // Destroy subscription before anything its callback accesses.
+    ChannelSubscriberPtr<LowState_> lowstate_subscriber_;
 
     void LowStateHandler(const void *message);
+    void waitForState(const std::function<bool()> &cancelled);
 
 public:
-    IOSDK(/* args */);
-    ~IOSDK(){}
+    explicit IOSDK(const StartupOptions &options,
+                   const std::function<bool()> &cancelled = [] { return false; });
+    ~IOSDK() override;
     void sendRecv(const LowlevelCmd *cmd, LowlevelState *state);
 };
 

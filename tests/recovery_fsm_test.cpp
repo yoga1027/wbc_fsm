@@ -33,7 +33,7 @@ int main()
         CtrlComponents ctrl(nullptr);
         TestIO io;
         ctrl.ioInter = &io;
-        // IOInterface has a non-virtual destructor; keep the borrowed object on the stack.
+        // CtrlComponents normally owns its IO; this test borrows a stack object.
         struct Detach { CtrlComponents &ctrl; ~Detach() { ctrl.ioInter = nullptr; } } detach{ctrl};
         ctrl.dt = 0.02;
         io.sample.imu.quaternion[0] = 1.0f;

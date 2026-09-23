@@ -25,8 +25,9 @@ void FSM::initialize(){
     _nextState = _currentState;
     _mode = FSMMode::NORMAL;  
 
-    std::cout<<"Press **start** to enter position control mode..."<<std::endl;
-    std::cout<<"Or press **R2+X** for recovery damping wait; release buttons, then **R2+Y** to start."<<std::endl;
+    std::cout<<"[FSM] Initial state: PASSIVE (damping). Recovery does not require START."<<std::endl;
+    std::cout<<"Press **R2+X** for recovery damping wait; release buttons, then **R2+Y** to start."<<std::endl;
+    std::cout<<"**START** is optional and enters the fixed standing pose, not recovery."<<std::endl;
 }
 
 void FSM::run(){

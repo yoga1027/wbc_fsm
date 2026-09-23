@@ -21,6 +21,12 @@ transition scheduling with the production entry latch, waiting damping publicati
 fault damping publication, and the final damping send
 before SELECT ends the main loop.
 
+The startup test checks default simulation mode, explicit hardware/interface
+selection, simulation RPC bypass, query errors with empty service names, release
+errors, mandatory post-release confirmation, and bounded retries (including the
+last confirmation). All RPC responses are injected; no hardware service is called.
+The recovery FSM test starts directly from PASSIVE via R2+X, without START.
+
 To independently compare the trace with the original ONNX and saved training
 configuration, use a Python environment with numpy, onnxruntime and PyYAML:
 
@@ -28,6 +34,11 @@ configuration, use a Python environment with numpy, onnxruntime and PyYAML:
 python tests/compare_recovery_policy.py /tmp/wbc-recovery-trace.json \
     /path/to/2026-05-09_16-23-30_3090_g1_amp_get_up_1_12288
 ```
+
+The oracle is pinned to the original model_40000 baseline. If the recovery config
+selects another checkpoint, this comparison is not a validation of that model;
+adapt the reference model/run before using it. The ordinary C++ state/FSM tests
+exercise the model currently selected by the recovery config.
 
 The oracle reads the original exported model, joint names from the run's
 `policy.onnx` metadata and full-precision parameters from `params/env.yaml`.

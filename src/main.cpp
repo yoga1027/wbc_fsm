@@ -6,6 +6,7 @@
 #include <csignal>
 #include <sched.h>
 #include <iomanip>
+#include <memory>
 #include <vector>
 #include <cstring>
 #include <openssl/sha.h>
@@ -25,12 +26,12 @@
 #include "interface/IOSDK.h"
 
 bool running = true;  
+volatile std::sig_atomic_t stopRequested = 0;
 
 
 void ShutDown(int sig) 
 {
-    std::cout << "stop the controller" << std::endl;
-    running = false;
+    stopRequested = 1;
 }
 
 void setProcessScheduler()  // 实时调度设置
@@ -45,28 +46,50 @@ void setProcessScheduler()  // 实时调度设置
 }
 
 int main(int argc, char **argv) {
-    
-    setProcessScheduler();
-    std::cout << std::fixed << std::setprecision(3);
-    IOInterface *ioInter;
-    CtrlPlatform ctrlPlat;
+    try {
+        const auto options = StartupOptions::parse(argc, argv);
+        if (options.help) {
+            std::cout << "Usage:\n"
+                      << "  " << argv[0] << " [--sim] [--interface lo]\n"
+                      << "  " << argv[0] << " --real --interface <robot-network-interface>\n"
+                      << "Default: simulation, DDS domain 1. Real robot: domain 0 with verified motion service release.\n"
+                      << "Recovery: PASSIVE -> R2+X -> release buttons -> R2+Y. START is not required.\n";
+            return 0;
+        }
+        signal(SIGINT, ShutDown);
+        signal(SIGTERM, ShutDown);
+        setProcessScheduler();
+        std::cout << std::fixed << std::setprecision(3);
 
-    ioInter = new IOSDK();
-    ctrlPlat = CtrlPlatform::REALROBOT;
+        // Load all models/configs before touching the robot's motion service.
+        CtrlComponents ctrlComp(nullptr);
+        ctrlComp.ctrlPlatform = options.realRobot ? CtrlPlatform::REALROBOT : CtrlPlatform::MUJOCO;
+        ctrlComp.dt = 0.02;
+        ctrlComp.running = &running;
+        ControlFrame ctrlFrame(&ctrlComp);
+        const LowlevelCmd damping = *ctrlComp.lowCmd; // initialized by PASSIVE::enter
+        auto sdk = std::make_unique<IOSDK>(options, [] { return stopRequested != 0; });
+        ctrlComp.ioInter = sdk.release(); // owned by CtrlComponents; virtual IO destructor
 
-    CtrlComponents *ctrlComp = new CtrlComponents(ioInter);
-    ctrlComp->ctrlPlatform = ctrlPlat;
-    ctrlComp->dt = 0.02;
-    ctrlComp->running = &running;
-
-    ControlFrame ctrlFrame(ctrlComp);
-    signal(SIGINT, ShutDown);
-
-    while (running) {
-        if (ctrlComp->exitFlag) break;
-        ctrlFrame.run();
+        int result = 0;
+        try {
+            while (running && !stopRequested && !ctrlComp.exitFlag) ctrlFrame.run();
+        } catch (const std::exception &e) {
+            std::cerr << "[Control] " << e.what() << std::endl;
+            result = 1;
+        }
+        // Includes Ctrl+C and SELECT from non-recovery states. Never resume the
+        // stock motion service automatically when exiting a fallen-state test.
+        *ctrlComp.lowCmd = damping;
+        try {
+            ctrlComp.sendRecv();
+        } catch (const std::exception &e) {
+            std::cerr << "[Shutdown] Damping publication failed: " << e.what() << std::endl;
+            result = 1;
+        }
+        return result;
+    } catch (const std::exception &e) {
+        std::cerr << "[Startup] " << e.what() << std::endl;
+        return stopRequested ? 130 : 1;
     }
-
-    delete ctrlComp;
-    return 0;
 }

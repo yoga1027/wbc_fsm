@@ -34,3 +34,7 @@ target_compile_definitions(recovery_fsm_test PRIVATE PROJECT_ROOT_DIR="${REPO_RO
 target_link_libraries(recovery_fsm_test PRIVATE Eigen3::Eigen nlohmann_json::nlohmann_json
     "${ORT_ROOT}/lib/libonnxruntime.so.1.22.0")
 add_test(NAME recovery_fsm COMMAND recovery_fsm_test)
+
+add_executable(startup_test startup_test.cpp)
+target_include_directories(startup_test PRIVATE "${REPO_ROOT}/include")
+add_test(NAME startup COMMAND startup_test)

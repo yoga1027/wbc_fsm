@@ -80,10 +80,7 @@ make -j4
    set(ONNXRUNTIME_ROOT ${PROJECT_SOURCE_DIR}/onnxruntime-linux-x64-1.22.0)
    ```
 
-3. 在 `controller/src/interface/IOSDK.cpp` 中配置网络接口：
-   ```cpp
-   ChannelFactory::Instance()->Init(1, "lo"); // lo 用于仿真
-   ```
+3. 使用启动参数选择通信模式，无需修改 `IOSDK.cpp`。默认是仿真，DDS domain 为 1，网卡为 `lo`。
 
 4. 编译项目：
    ```bash
@@ -113,7 +110,7 @@ make -j4
 6. 运行控制器（在新终端中）：
    ```bash
    cd controller/build
-   ./wbc_fsm
+   ./wbc_fsm --sim
    ```
 
 ### 在真实机器人上部署
@@ -125,10 +122,7 @@ make -j4
    set(ONNXRUNTIME_ROOT ${PROJECT_SOURCE_DIR}/onnxruntime-linux-aarch64-1.22.0)
    ```
 
-3. 在 `controller/src/interface/IOSDK.cpp` 中配置网络接口：
-   ```cpp
-   ChannelFactory::Instance()->Init(0, "eth0"); // eth0 用于真实机器人
-   ```
+3. 确认连接机器人的实际网卡名称。实机必须显式使用 `--real --interface 网卡名`，DDS domain 为 0；不接受缺省网卡或 `lo`。
 
 4. 编译项目：
    ```bash
@@ -137,10 +131,32 @@ make -j4
    make -j4
    ```
 
-5. 运行控制器：
+5. 运行控制器（将 `eth0` 替换为连接机器人的网卡名）：
    ```bash
-   ./wbc_fsm
+   ./wbc_fsm --real --interface eth0
    ```
+
+程序先加载所有策略和配置，再初始化通信。收到有效 `rt/lowstate` 后，实机模式通过
+`CheckMode` 查询原有运动服务，有活动服务时调用 `ReleaseMode`，随后重新查询确认服务名为空。
+查询失败、释放失败或重试后仍有活动服务都会停止启动，不发送电机命令。
+每次 RPC 超时为 2 秒，最多请求释放 5 次，间隔 200 ms；释放返回成功本身不算接管成功。
+仿真模式不创建运动服务客户端、不调用这套 RPC。
+
+启动时最多等待 5 秒获取有效状态；要求 CRC、关节位置/速度、IMU 和机器人类型有效，
+状态在最近 250 ms 内收到。实机释放服务后再次确认状态新鲜度。
+这是启动检查，不是运行中的断联看门狗。异步回调和控制循环使用加锁的整帧快照。
+
+出现 `[Startup] Ready. Starting in PASSIVE damping; no START required.` 后，起身流程为：
+
+```text
+PASSIVE → R2+X（保持阻尼）→ 松开按键，包括 R2 → R2+Y（启动起身）
+```
+
+无需先按 `START`；`START` 仍保留为可选的固定站姿功能。
+接管原有运动服务后机器人将进入阻尼，阻尼不支撑站立，应在有支撑或已摆好倒地姿态时接管。
+`L2+B` 返回阻尼；`SELECT`、Ctrl+C 或 SIGTERM 正常结束时会尝试下发最后一帧阻尼。
+退出不会自动恢复原厂运动服务。`--help` 只显示参数，不建立 DDS 或请求接管。
+实机 SDK 服务响应和闭环起身效果需单独验证，离线测试不代表实机验证。
 
 ## 项目结构
 
@@ -181,10 +197,9 @@ controller/
 | 状态 | 模型 | 配置 |
 | --- | --- | --- |
 | `MJAMP` | `model/loco/Unitree-G1-AMP-Flat_model_30000.onnx` | `config/mjamp.json` |
-| `MJAMP_RECOVERY` | `model/loco/Unitree-G1-AMP-Flat_model_40000.onnx` | `config/mjamp_recovery.json` |
+| `MJAMP_RECOVERY` | 由 `config/mjamp_recovery.json` 的 `model_path` 指定 | `config/mjamp_recovery.json` |
 
-恢复模型来自训练运行 `2026-05-09_16-23-30_3090_g1_amp_get_up_1_12288/export/`，
-SHA256：`4a3da35454de610beb27c3bb985ccd9688ba70ced63aa3916eacb4cd4f93ac29`。
+初版恢复模型为 `model_40000.onnx`；当前部署以配置中的路径及启动打印的模型路径为准。
 旧 `AMP` 和 `LOCO` 状态也继续保留。
 
 | 当前状态 | 按键 | 行为 |
@@ -225,7 +240,7 @@ SHA256：`4a3da35454de610beb27c3bb985ccd9688ba70ced63aa3916eacb4cd4f93ac29`。
 起身成功率、不同初始姿态以及切回旧策略的实际稳定性需要在 MuJoCo 中验证。
 离线验证命令见 [tests/README.md](tests/README.md)。
 
-### 操作步骤
+### 行走和 WBC 操作步骤（倒地起身使用上面的恢复流程）
 
 1. 运行程序后，机器人处于**阻尼保护模式**
 2. 按 **START** 键进入位控模式

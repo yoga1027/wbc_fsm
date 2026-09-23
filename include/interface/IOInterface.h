@@ -9,13 +9,13 @@
 class IOInterface{
 public:
 IOInterface(){}
-~IOInterface(){delete cmdPanel;}
+virtual ~IOInterface(){delete cmdPanel;}
 virtual void sendRecv(const LowlevelCmd *cmd, LowlevelState *state) = 0;
 void zeroCmdPanel(){cmdPanel->setZero();}
 void setPassive(){cmdPanel->setPassive();}
 
 protected:
-CmdPanel *cmdPanel;
+CmdPanel *cmdPanel = nullptr;
 };
 
 #endif  //IOINTERFACE_H
