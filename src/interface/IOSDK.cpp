@@ -48,36 +48,36 @@ IOSDK::IOSDK(const StartupOptions &options, const std::function<bool()> &cancell
               << ", DDS domain=" << options.domainId() << std::endl;
     ChannelFactory::Instance()->Init(options.domainId(), options.networkInterface);
 
-    // Creating a publisher does not send commands. sendRecv remains disabled
-    // until valid feedback and (on hardware) motion service release are confirmed.
-    lowcmd_publisher_.reset(new ChannelPublisher<LowCmd_>(HG_CMD_TOPIC));
-    lowcmd_publisher_->InitChannel();
+    // Receive feedback, but do not wait for it before releasing the stock
+    // service. The command publisher is created only after verified handoff.
     lowstate_subscriber_.reset(new ChannelSubscriber<LowState_>(HG_STATE_TOPIC));
     try {
         lowstate_subscriber_->InitChannel(std::bind(&IOSDK::LowStateHandler, this, std::placeholders::_1), 1);
-        waitForState(cancelled);
-        std::unique_ptr<unitree::robot::b2::MotionSwitcherClient> client;
         if (options.realRobot) {
-            client = std::make_unique<unitree::robot::b2::MotionSwitcherClient>();
-            client->SetTimeout(2.0f);
-            client->Init();
+            motionClient_ = std::make_unique<unitree::robot::b2::MotionSwitcherClient>();
+            motionClient_->Init();
         }
-        releaseMotionService(options.realRobot,
-                [&](std::string &form, std::string &name) {
-                    if (cancelled()) throw std::runtime_error("Startup cancelled");
-                    return client->CheckMode(form, name);
-                },
-                [&] {
-                    if (cancelled()) throw std::runtime_error("Startup cancelled");
-                    return client->ReleaseMode();
-                },
-                [&] { std::this_thread::sleep_for(std::chrono::milliseconds(200)); }, std::cout);
-        if (options.realRobot) {
-            // RPCs can take seconds; do not start using a stale pre-release pose.
-            waitForState(cancelled);
-        }
-        if (cancelled()) throw std::runtime_error("Startup cancelled");
-        controlReady_ = true;
+        prepareMotionControl(options.realRobot,
+            [&](std::string &form, std::string &name, std::chrono::milliseconds budget) {
+                motionClient_->SetTimeout(static_cast<float>(budget.count()) / 1000.0f);
+                return motionClient_->CheckMode(form, name);
+            },
+            [&](std::chrono::milliseconds budget) {
+                motionClient_->SetTimeout(static_cast<float>(budget.count()) / 1000.0f);
+                return motionClient_->ReleaseMode();
+            },
+            [&] { return hasFreshState(); },
+            [&] {
+                lowcmd_publisher_ = std::make_shared<ChannelPublisher<LowCmd_>>(HG_CMD_TOPIC);
+                lowcmd_publisher_->InitChannel();
+                controlReady_ = true;
+            },
+            [&](std::chrono::milliseconds duration) {
+                const auto until = std::chrono::steady_clock::now() + duration;
+                while (!cancelled() && std::chrono::steady_clock::now() < until)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            },
+            [] { return std::chrono::steady_clock::now(); }, cancelled, std::cout);
         std::cout << "[Startup] Ready. Starting in PASSIVE damping; no START required."
                   << std::endl;
     } catch (...) {
@@ -91,19 +91,10 @@ IOSDK::~IOSDK()
     lowstate_subscriber_->CloseChannel();
 }
 
-void IOSDK::waitForState(const std::function<bool()> &cancelled)
+bool IOSDK::hasFreshState()
 {
-    using Clock = std::chrono::steady_clock;
-    const auto deadline = Clock::now() + std::chrono::seconds(5);
-    std::unique_lock<std::mutex> lock(stateMutex_);
-    while (true) {
-        if (cancelled()) throw std::runtime_error("Startup cancelled");
-        const auto now = Clock::now();
-        if (stateReady_ && now - lastStateTime_ < std::chrono::milliseconds(250)) return;
-        if (now >= deadline)
-            throw std::runtime_error("No fresh valid rt/lowstate within 5 seconds; refusing startup");
-        stateChanged_.wait_for(lock, std::chrono::milliseconds(50));
-    }
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return stateReady_ && std::chrono::steady_clock::now() - lastStateTime_ < std::chrono::milliseconds(250);
 }
 
 void IOSDK::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
@@ -207,5 +198,4 @@ void IOSDK::LowStateHandler(const void *message)
     // behind an older valid observation. Only startup readiness uses this flag.
     stateReady_ = valid;
     lastStateTime_ = std::chrono::steady_clock::now();
-    stateChanged_.notify_all();
 }

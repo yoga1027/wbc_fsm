@@ -1,6 +1,7 @@
 #include "interface/MotionServiceHandoff.h"
 #include "interface/StartupOptions.h"
 #include <iostream>
+#include <functional>
 #include <sstream>
 #include <vector>
 
@@ -23,6 +24,61 @@ StartupOptions parse(std::vector<std::string> args)
     return StartupOptions::parse(static_cast<int>(argv.size()), argv.data());
 }
 
+using namespace std::chrono;
+struct Reply { int ret = 0; std::string name; };
+struct Handoff
+{
+    steady_clock::time_point clock{};
+    std::vector<Reply> replies;
+    Reply fallback{};
+    std::vector<int> releaseResults;
+    int checks = 0, releases = 0, enabled = 0;
+    bool feedback = true, releaseEnablesFeedback = false;
+    bool invalidateAtFinal = false;
+    milliseconds rpcCost{0};
+    milliseconds feedbackAfter{0};
+    milliseconds cancelAfter{999999};
+    milliseconds enabledAt{0};
+    std::vector<milliseconds> budgets;
+    std::ostringstream log;
+
+    milliseconds elapsed() const { return duration_cast<milliseconds>(clock.time_since_epoch()); }
+    void run(bool real = true)
+    {
+        prepareMotionControl(real,
+            [&](std::string &form, std::string &name, milliseconds budget) {
+                budgets.push_back(budget);
+                require(budget > milliseconds(0) && budget <= milliseconds(5000), "RPC timeout out of bounds");
+                const auto reply = checks < static_cast<int>(replies.size()) ? replies[checks] : fallback;
+                ++checks;
+                clock += rpcCost;
+                if (invalidateAtFinal && checks == 4) feedback = false;
+                if (reply.ret == -999) throw std::runtime_error("injected RPC exception");
+                form = "0";
+                name = reply.name;
+                return reply.ret;
+            },
+            [&](milliseconds budget) {
+                budgets.push_back(budget);
+                const auto index = releases++;
+                if (releaseEnablesFeedback) feedback = true;
+                const int ret = index < static_cast<int>(releaseResults.size()) ? releaseResults[index] : 0;
+                if (ret == -999) throw std::runtime_error("injected release exception");
+                return ret;
+            },
+            [&] { return feedback && elapsed() >= feedbackAfter; },
+            [&] { ++enabled; enabledAt = elapsed(); },
+            [&](milliseconds duration) { clock += duration; },
+            [&] { return clock; },
+            [&] { return elapsed() >= cancelAfter; }, log);
+    }
+    void fails()
+    {
+        mustFail([&] { run(); }, "Unconfirmed startup was accepted");
+        require(enabled == 0, "Failure created the motor command publisher");
+    }
+};
+
 int main()
 {
     try {
@@ -43,57 +99,83 @@ int main()
             require(rejected, "Invalid startup arguments accepted");
         }
 
-        std::ostringstream log;
-        int checks = 0, releases = 0, waits = 0;
-        auto idle = [&](std::string &, std::string &name) { ++checks; name.clear(); return 0; };
-        auto release = [&] { ++releases; return 0; };
-        auto wait = [&] { ++waits; };
-        releaseMotionService(false, idle, release, wait, log);
-        require(checks == 0 && releases == 0 && waits == 0, "Simulation contacted motion service");
-        releaseMotionService(true, idle, release, wait, log);
-        require(checks == 1 && releases == 0, "Already released mode was not accepted");
+        Handoff simHandoff;
+        simHandoff.feedbackAfter = milliseconds(100);
+        simHandoff.run(false);
+        require(simHandoff.checks == 0 && simHandoff.releases == 0 && simHandoff.enabled == 1,
+                "Simulation must wait for feedback without any RPCs");
+        Handoff simNoState;
+        simNoState.feedback = false;
+        mustFail([&] { simNoState.run(false); }, "Simulation without feedback started");
+        require(simNoState.enabled == 0 && simNoState.elapsed() == seconds(5), "Simulation wait is unbounded");
 
-        checks = releases = waits = 0;
-        releaseMotionService(true, [&](std::string &, std::string &name) {
-            name = ++checks == 1 ? "normal" : "";
-            return 0;
-        }, release, wait, log);
-        require(checks == 2 && releases == 1 && waits == 1,
-                "Release must be followed by a confirming query");
+        Handoff idle;
+        idle.run();
+        require(idle.checks == 4 && idle.releases == 0 && idle.enabledAt == seconds(2),
+                "Need three stable empty queries plus a pre-publication check");
 
-        checks = releases = waits = 0;
-        mustFail([&] {
-            releaseMotionService(true, [&](std::string &, std::string &) {
-                ++checks; return 3102; // name remains empty on RPC failure
-            }, release, wait, log);
-        }, "Empty name on failed CheckMode was mistaken for successful release");
-        require(releases == 0, "Query failure issued ReleaseMode");
+        Handoff delayed;
+        delayed.replies.assign(10, {0, "normal"});
+        delayed.run();
+        require(delayed.releases == 10 && delayed.enabledAt == seconds(12), "Slow service shutdown not retried");
 
-        auto active = [&](std::string &, std::string &name) { ++checks; name = "normal"; return 0; };
-        mustFail([&] {
-            releaseMotionService(true, active, [] { return 42; }, wait, log);
-        }, "ReleaseMode error accepted");
+        Handoff transient;
+        transient.replies = {{3102, ""}, {-999, ""}, {0, "normal"}, {0, "normal"}, {0, "normal"}};
+        transient.releaseResults = {7002, -999, 0};
+        transient.run();
+        require(transient.enabled == 1 && transient.releases == 3, "Transient query/busy/release errors not retried");
 
-        checks = releases = waits = 0;
-        mustFail([&] { releaseMotionService(true, active, release, wait, log); },
-                 "Successful ReleaseMode without empty service name accepted");
-        require(checks == 6 && releases == 5 && waits == 5, "Retry limit/final confirmation wrong");
+        Handoff noStateBeforeRelease;
+        noStateBeforeRelease.feedback = false;
+        noStateBeforeRelease.releaseEnablesFeedback = true;
+        noStateBeforeRelease.replies = {{0, "normal"}};
+        noStateBeforeRelease.run();
+        require(noStateBeforeRelease.enabled == 1 && noStateBeforeRelease.releases == 1,
+                "Feedback was incorrectly required before ReleaseMode");
 
-        checks = releases = waits = 0;
-        mustFail([&] {
-            releaseMotionService(true, [&](std::string &, std::string &name) {
-                name = ++checks == 1 ? "normal" : "";
-                return checks == 1 ? 0 : -1;
-            }, release, wait, log);
-        }, "Failed confirmation after release accepted");
+        Handoff flap;
+        flap.replies = {{0, ""}, {0, ""}, {0, ""}, {0, "normal"}, {0, "normal"}};
+        flap.run();
+        require(flap.enabledAt == seconds(6) && flap.releases == 1,
+                "Service reappearing at pre-publication check was accepted");
 
-        checks = releases = waits = 0;
-        releaseMotionService(true, [&](std::string &, std::string &name) {
-            name = ++checks <= 5 ? "normal" : "";
-            return 0;
-        }, release, wait, log);
-        require(checks == 6 && releases == 5, "Last release was not checked");
-        std::cout << "PASS: startup modes, RPC failures, release confirmation and bounded retries (no DDS)\n";
+        Handoff interruptedConfirmation;
+        interruptedConfirmation.replies = {{0, ""}, {3102, ""}};
+        interruptedConfirmation.run();
+        require(interruptedConfirmation.enabledAt == seconds(4), "Failed query did not reset stable confirmation");
+
+        Handoff queryFailure;
+        queryFailure.fallback = {3102, ""};
+        queryFailure.fails();
+        require(queryFailure.releases == 0 && queryFailure.elapsed() == seconds(60),
+                "Failed queries with empty names must time out without release/publication");
+        Handoff active;
+        active.fallback = {0, "normal"};
+        active.fails();
+        require(active.releases > 0 && active.elapsed() == seconds(60), "Release success bypassed ownership confirmation");
+        Handoff missingState;
+        missingState.feedback = false;
+        missingState.fails();
+        Handoff staleAtFinal;
+        staleAtFinal.invalidateAtFinal = true;
+        staleAtFinal.fails();
+
+        Handoff cancelled;
+        cancelled.cancelAfter = milliseconds(0);
+        cancelled.fails();
+        require(cancelled.checks == 0, "Cancellation still contacted motion service");
+        Handoff cancelDuringWait;
+        cancelDuringWait.cancelAfter = seconds(1);
+        cancelDuringWait.fails();
+        Handoff lateReply;
+        lateReply.rpcCost = seconds(61);
+        lateReply.fails();
+        Handoff bounded;
+        bounded.rpcCost = milliseconds(4200);
+        bounded.fallback = {3102, ""};
+        bounded.fails();
+        require(bounded.budgets.back() < seconds(5), "RPC timeout did not shrink to the remaining deadline");
+        std::cout << "PASS: BeiChe-style handoff ordering, retries, stable ownership, feedback, deadline and cancellation (no DDS)\n";
         return 0;
     } catch (const std::exception &e) {
         std::cerr << "FAIL: " << e.what() << '\n';

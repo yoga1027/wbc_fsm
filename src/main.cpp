@@ -53,6 +53,7 @@ int main(int argc, char **argv) {
                       << "  " << argv[0] << " [--sim] [--interface lo]\n"
                       << "  " << argv[0] << " --real --interface <robot-network-interface>\n"
                       << "Default: simulation, DDS domain 1. Real robot: domain 0 with verified motion service release.\n"
+                      << "Startup implementation: handoff-v2 (stable confirmation, bounded RPC retry).\n"
                       << "Recovery: PASSIVE -> R2+X -> release buttons -> R2+Y. START is not required.\n";
             return 0;
         }
@@ -60,6 +61,10 @@ int main(int argc, char **argv) {
         signal(SIGTERM, ShutDown);
         setProcessScheduler();
         std::cout << std::fixed << std::setprecision(3);
+        char executable[4096]{};
+        const auto length = readlink("/proc/self/exe", executable, sizeof(executable) - 1);
+        std::cout << "[Startup] handoff-v2, built " << __DATE__ << ' ' << __TIME__
+                  << ", executable=" << (length > 0 ? executable : argv[0]) << std::endl;
 
         // Load all models/configs before touching the robot's motion service.
         CtrlComponents ctrlComp(nullptr);

@@ -140,9 +140,13 @@ Example configuration (`wbc.json`):
    ```
 
 Replace `eth0` with the actual robot interface. Models load before motion-service
-handoff. Hardware startup waits for valid feedback, checks/releases the stock
-motion service and confirms an empty service name with a successful query before
-sending any motor commands. RPC failures or exhausted retries abort startup.
+handoff. `handoff-v2` adopts BeiChe's release-before-feedback ordering, 5-second
+RPC timeout and 1-second retry interval. Temporary RPC failures are retried within
+a 60-second overall deadline. Three successful empty-mode queries spanning at
+least 2 seconds, valid feedback, and a final ownership/feedback recheck are required
+before creating the command publisher. An unconfirmed handoff aborts startup.
+The executable path, build time and `handoff-v2` marker are printed at startup;
+`--help` also includes that marker so deployed binaries can be identified.
 Simulation skips the service client entirely. `--help` does not initialize DDS.
 
 After the startup-ready message, the initial state is PASSIVE damping:
@@ -151,7 +155,9 @@ After the startup-ready message, the initial state is PASSIVE damping:
 Support the robot during handoff: damping does not hold it upright.
 `L2+B` returns to damping. SELECT, Ctrl+C and SIGTERM attempt a final damping send;
 exiting does not automatically restart the stock motion service.
-Feedback freshness is checked at startup, not a runtime communication watchdog.
+Feedback freshness and ownership are checked at startup, not by a runtime watchdog.
+This does not detect other custom command publishers; stop the BeiChe controller
+and other low-level controllers before running this program.
 See [the Chinese startup details](README_zh.md) and [offline tests](tests/README.md).
 
 ## Controls

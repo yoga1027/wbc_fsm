@@ -7,7 +7,6 @@
 #include "interface/UserCommandMapping.h"
 #include "interface/StartupOptions.h"
 #include <chrono>
-#include <condition_variable>
 #include <functional>
 #include <mutex>
 #include <unitree/robot/channel/channel_publisher.hpp>
@@ -45,15 +44,16 @@ private:
     RecoveryEntryLatch recoveryEntryLatch_;
     UserValue userValue_;
     std::mutex stateMutex_;
-    std::condition_variable stateChanged_;
     bool stateReady_ = false;
     bool controlReady_ = false;
+    // Same lifetime as the interface, as in the BeiChe implementation.
+    std::unique_ptr<unitree::robot::b2::MotionSwitcherClient> motionClient_;
     std::chrono::steady_clock::time_point lastStateTime_{};
     // Destroy subscription before anything its callback accesses.
     ChannelSubscriberPtr<LowState_> lowstate_subscriber_;
 
     void LowStateHandler(const void *message);
-    void waitForState(const std::function<bool()> &cancelled);
+    bool hasFreshState();
 
 public:
     explicit IOSDK(const StartupOptions &options,

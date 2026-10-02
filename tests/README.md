@@ -21,10 +21,13 @@ transition scheduling with the production entry latch, waiting damping publicati
 fault damping publication, and the final damping send
 before SELECT ends the main loop.
 
-The startup test checks default simulation mode, explicit hardware/interface
-selection, simulation RPC bypass, query errors with empty service names, release
-errors, mandatory post-release confirmation, and bounded retries (including the
-last confirmation). All RPC responses are injected; no hardware service is called.
+The startup test checks the production handoff orchestration with injected RPCs,
+feedback, publisher creation and a fake clock. It covers default simulation mode,
+explicit hardware/interface selection, simulation RPC bypass, release before
+feedback becomes available, slow shutdown, transient query/release errors and
+exceptions, consecutive empty-mode confirmation, reappearing services on the final
+check, missing/stale feedback, cancellation and the total deadline (including late
+RPC replies and reduced remaining RPC budgets). No hardware service is called.
 The recovery FSM test starts directly from PASSIVE via R2+X, without START.
 
 To independently compare the trace with the original ONNX and saved training
