@@ -1,5 +1,5 @@
 {
-    "model_path": "model/amp_mjlab_recovery/v4_4_3090_g1_amp_get_up_new_recovery_data_t_height_seed42_12288_1_model_10000.onnx",
+    "model_path": "model/amp_mjlab_recovery/Unitree-G1-AMP-Flat-StandFT2_model_12000.onnx",
     "vx_limit_min": -0.8,
     "vx_limit_max": 2.5,
     "vx_limit_min_slow": -0.8,
