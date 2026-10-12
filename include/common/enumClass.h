@@ -66,6 +66,7 @@ enum class FSMStateName{
     AMP,
     MJAMP,
     MJAMP_RECOVERY,
+    LOCO_RECOVERY,
 };
 
 #endif  // ENUMCLASS_H

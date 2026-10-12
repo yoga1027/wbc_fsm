@@ -22,8 +22,10 @@ public:
     void run();
     void exit();
     FSMStateName checkChange();
+    void setCommandGain(float gain) { _commandGain = gain; }
  
 private:
+    float _commandGain = 1.0f; // Composite mode gates/ramp commands; default unchanged.
     Ort::Env _env;
     Ort::SessionOptions _session_options;
     std::unique_ptr<Ort::Session> _session;

@@ -1,0 +1,20 @@
+{
+    "trigger_tilt_rad": 0.48869219,
+    "hard_tilt_rad": 0.73303829,
+    "trigger_tilt_rate_rad_s": 0.35,
+    "trigger_hold_seconds": 0.04,
+    "stable_tilt_rad": 0.20943951,
+    "stable_angular_velocity": 0.4,
+    "stable_joint_velocity": 0.8,
+    "stable_hold_seconds": 0.8,
+    "minimum_recovery_seconds": 1.0,
+    "recovery_warning_seconds": 15.0,
+    "return_blend_seconds": 0.3,
+    "recovery_blend_seconds": 0.08,
+    "recovery_blend_fast_tilt_rate": 2.5,
+    "recovery_blend_time_margin": 0.5,
+    "command_ramp_seconds": 0.5,
+    "stick_dead_zone": 0.1,
+    "standing_joint_min": [-1.0, -0.6, -1.5, -0.09, -0.9, -0.3, -1.0, -0.6, -1.5, -0.09, -0.9, -0.3],
+    "standing_joint_max": [0.5, 0.6, 1.5, 1.15, 0.5, 0.3, 0.5, 0.6, 1.5, 1.15, 0.5, 0.3]
+}

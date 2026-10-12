@@ -51,3 +51,55 @@ between entry and activation, activation with a held stick, centering, slow/fast
 commands, moving joints, and re-entry while lying. A held R2+Y must not reset history.
 
 These are offline checks, not a physics simulation or validation of get-up success.
+
+## Automatic Loco recovery
+
+The same build/ctest commands also run `loco_recovery_state_test` and
+`loco_recovery_fsm_test`. The state test uses the configured real ONNX policies to
+check directional tilt-rate detection, yaw/inward-motion rejection, consecutive
+sample debounce, immediate hard-tilt takeover, joint/IMU standing gates, interrupted
+stability holds, repeated recovery, PD blending, re-fall during return, held joystick
+suppression, recurrent/history resets, invalid feedback, long recoveries and manual stops.
+Long recoveries keep joint support after the warning deadline and can still return
+when standing. Straight knees and the wide/rotated hip stance observed in actual
+Recovery simulation are accepted; sitting/kneeling and excessive joint motion
+remain blocked.
+Takeover regressions compare every q/dq/tau/Kp/Kd field against an independent
+Recovery ONNX session. They check progressive live-target handoff, compressed
+time budgets, immediate hard/fast-risk takeover, worsening risk during a handoff,
+repeat falls starting from an unfinished return command, direct activation from
+damping, and stop/SELECT/invalid-feedback priority during blending.
+It verifies that the borrowed Recovery policy still waits for manual activation
+when entered independently afterwards.
+
+The composite FSM test uses fake IO and the actual 50 Hz production scheduler.
+It checks manual startup, the fixed-stand completion gate, next-cycle publication
+of takeover commands, automatic return within the composite, rejection of held
+mode requests, routing of manual recovery back into the composite, fault damping,
+stop cancellation of pending transitions, and SELECT's final damping flush.
+The original recovery tests continue to run with automatic recovery disabled.
+None of these tests publishes DDS commands or connects to a physical robot.
+
+For the isolated physics regression with the adjacent `unitree_mujoco` checkout:
+
+```bash
+cmake -S tests -B /tmp/wbc-recovery-tests -DENABLE_MUJOCO_RECOVERY_TEST=ON
+cmake --build /tmp/wbc-recovery-tests -j4
+ctest --test-dir /tmp/wbc-recovery-tests --output-on-failure
+```
+
+`loco_recovery_physics_test` links MuJoCo directly, without its viewer or DDS bridge.
+It runs the actual configured ONNX policies at 50 Hz and applies the bridge's PD
+torque formula in a private G1 scene. It exercises four 0.5 s torso pushes:
+forward/backward 200 N for adaptive handoff, and forward/sideways 250 N for
+immediate takeover. Each case must enter Recovery, return to Loco, and sustain
+upright walking in response to joystick input after return. The stronger pushes
+also have to exercise a physical fall. Each case runs 25 seconds of simulated time.
+An independent Recovery session sees the same feedback as the composite and
+supplies the unmixed comparison commands. The test reports the first target/PD
+torque jumps and the peak estimated PD torque jump in the first 200 ms. These
+comparisons use the same feedback sequence, not separate baseline trajectories;
+PD estimates exclude actuator saturation and are not measured motor torque.
+Override `MUJOCO_ROOT` / `RECOVERY_TEST_SCENE` if the simulator checkout is elsewhere.
+The test loads the current `config/mjamp_recovery.json` model. This regression
+covers these simulated disturbances, not all falls or hardware behavior.

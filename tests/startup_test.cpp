@@ -86,6 +86,10 @@ int main()
         require(!sim.realRobot && sim.domainId() == 1 && sim.networkInterface == "lo",
                 "Default startup must be local simulation");
         const auto real = parse({"wbc_fsm", "--real", "--interface", "enp3s0"});
+        require(!sim.locoAutoRecovery, "Original task enabled automatic recovery");
+        const auto combined = parse({"wbc_fsm", "--loco-auto-recovery"});
+        require(combined.locoAutoRecovery && !combined.realRobot,
+                "Combined task must be opt-in and default to simulation");
         require(real.realRobot && real.domainId() == 0 && real.networkInterface == "enp3s0",
                 "Real mode/domain/interface disagree");
         const auto simNet = parse({"wbc_fsm", "--sim", "--interface", "enp3s0"});
@@ -93,7 +97,8 @@ int main()
         for (const auto &args : std::vector<std::vector<std::string>>{
                  {"wbc_fsm", "--real"}, {"wbc_fsm", "--real", "--interface", "lo"},
                  {"wbc_fsm", "--real", "--sim"}, {"wbc_fsm", "--interface"},
-                 {"wbc_fsm", "--interface", "--real"}, {"wbc_fsm", "--reel"}}) {
+                 {"wbc_fsm", "--interface", "--real"}, {"wbc_fsm", "--reel"},
+                 {"wbc_fsm", "--loco-auto-recovery", "--loco-auto-recovery"}}) {
             bool rejected = false;
             try { parse(args); } catch (const std::invalid_argument &) { rejected = true; }
             require(rejected, "Invalid startup arguments accepted");

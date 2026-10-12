@@ -103,6 +103,11 @@ void State_MJAMP_RECOVERY::_loadPolicy()
 
 void State_MJAMP_RECOVERY::_updateCommand()
 {
+    if (_automatic) {
+        _command.fill(0.0f);
+        _previousCommand.fill(0.0f);
+        return;
+    }
     _userValue = _lowState->userValue;
     const std::array<float, 3> sticks{_userValue.ly, _userValue.lx, _userValue.rx};
     for (float value : sticks)
@@ -234,6 +239,7 @@ void State_MJAMP_RECOVERY::_resetPolicyBuffers()
 
 void State_MJAMP_RECOVERY::enter()
 {
+    _automatic = false;
     _resetPolicyBuffers();
     _terminate = false;
     _phase = Phase::WAITING;
@@ -242,6 +248,20 @@ void State_MJAMP_RECOVERY::enter()
     _writeDamping();
     std::cout << "[MJAMP_RECOVERY] WAITING: damping only. Release buttons, then press R2+Y to start."
               << std::endl;
+}
+
+void State_MJAMP_RECOVERY::enterAutomatic()
+{
+    _automatic = true;
+    _terminate = false;
+    _phase = Phase::WAITING;
+    _startReleased = false;
+    _lastUserCommand = _lowState->userCmd;
+    try {
+        _startPolicy();
+    } catch (const std::exception &error) {
+        _fail(error.what());
+    }
 }
 
 void State_MJAMP_RECOVERY::_startPolicy()
@@ -258,7 +278,8 @@ void State_MJAMP_RECOVERY::_startPolicy()
     _inferAndWriteCommand(); // Commit RUNNING only after the first action is valid.
     _phase = Phase::RUNNING;
     _startReleased = false;
-    std::cout << "[MJAMP_RECOVERY] RUNNING: policy started from current pose; center sticks to enable commands."
+    std::cout << (_automatic ? "[MJAMP_RECOVERY] RUNNING: automatic recovery, zero velocity command."
+                           : "[MJAMP_RECOVERY] RUNNING: policy started from current pose; center sticks to enable commands.")
               << std::endl;
 }
 
@@ -292,6 +313,7 @@ void State_MJAMP_RECOVERY::run()
 
 void State_MJAMP_RECOVERY::exit()
 {
+    _automatic = false;
     _resetPolicyBuffers();
     _phase = Phase::WAITING;
     _startReleased = false;

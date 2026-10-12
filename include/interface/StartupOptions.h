@@ -7,6 +7,7 @@ struct StartupOptions
 {
     bool realRobot = false;
     bool help = false;
+    bool locoAutoRecovery = false;
     std::string networkInterface = "lo";
     unsigned domainId() const { return realRobot ? 0 : 1; }
 
@@ -19,6 +20,10 @@ struct StartupOptions
             const std::string arg = argv[i];
             if (arg == "--help" || arg == "-h") {
                 result.help = true;
+            } else if (arg == "--loco-auto-recovery") {
+                if (result.locoAutoRecovery)
+                    throw std::invalid_argument("Duplicate --loco-auto-recovery");
+                result.locoAutoRecovery = true;
             } else if (arg == "--sim" || arg == "--real") {
                 if (modeSpecified) throw std::invalid_argument("Specify only one of --sim / --real");
                 modeSpecified = true;

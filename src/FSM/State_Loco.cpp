@@ -132,6 +132,12 @@ void State_Loco::_observations_compute()
 }
 
 void State_Loco::_getUserCmd(){
+    if (_commandGain == 0.0f) {
+        _vCmdBody.setZero();
+        _vCmdBodyPast.setZero();
+        _dYawCmd = _dYawCmdPast = 0.0;
+        return;
+    }
     if (_userValue.ly < -dead_zone)
         _vCmdBody(0) = _userValue.ly * (-_vxLim(0));
     
@@ -147,9 +153,10 @@ void State_Loco::_getUserCmd(){
     else
         _vCmdBody(1) = 0;
 
+    _vCmdBody *= _commandGain;
     _vCmdBody(2) = 0;
     _vCmdBody = _vCmdBodyPast * this->_cmdSmoothes + _vCmdBody * (1 - this->_cmdSmoothes);
-    _dYawCmd =  invNormalize(_userValue.rx, _wyawLim(0), _wyawLim(1));
+    _dYawCmd =  invNormalize(_userValue.rx, _wyawLim(0), _wyawLim(1)) * _commandGain;
     _dYawCmd = _dYawCmd;
     _dYawCmdPast = _dYawCmd;
     _vCmdBodyPast = _vCmdBody;

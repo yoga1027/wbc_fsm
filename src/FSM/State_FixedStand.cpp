@@ -74,6 +74,10 @@ FSMStateName State_FixedStand::checkChange(){
     else if (_lowState->userCmd == UserCommand::R2_X) {
         return FSMStateName::MJAMP_RECOVERY;
     }
+    else if (_ctrlComp->locoAutoRecovery && _fixedstand_complete_flag &&
+             _lowState->userCmd == UserCommand::R2_B) {
+        return FSMStateName::LOCO_RECOVERY;
+    }
     else{
         return FSMStateName::FIXEDSTAND;
     }

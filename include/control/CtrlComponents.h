@@ -28,6 +28,7 @@ public:
     double dt;
     bool *running;
     bool exitFlag;
+    bool locoAutoRecovery = false;
     CtrlPlatform ctrlPlatform;
 
     void sendRecv(){

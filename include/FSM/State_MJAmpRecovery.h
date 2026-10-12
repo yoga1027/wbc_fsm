@@ -16,6 +16,9 @@ public:
     void run() override;
     void exit() override;
     FSMStateName checkChange() override;
+    // Used only by the composite controller; ordinary enter() retains manual start.
+    void enterAutomatic();
+    bool failed() const { return _terminate; }
 
 private:
     enum class Phase { WAITING, RUNNING };
@@ -46,6 +49,7 @@ private:
     bool _highSpeed = false;
     bool _commandArmed = false;
     bool _terminate = false;
+    bool _automatic = false;
     Phase _phase = Phase::WAITING;
     bool _startReleased = false;
     UserCommand _lastUserCommand = UserCommand::NONE;
