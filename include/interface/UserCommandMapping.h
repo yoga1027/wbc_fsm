@@ -4,7 +4,8 @@
 #include "common/gamepad.hpp"
 
 // Decode the current held buttons. No button held must clear stale commands.
-inline UserCommand userCommandFromGamepad(const unitree::common::Gamepad &pad)
+inline UserCommand userCommandFromGamepad(const unitree::common::Gamepad &pad,
+                                          bool strictStandaloneR1 = false)
 {
     if (pad.select.pressed) return UserCommand::SELECT;
     if (pad.L2.pressed && pad.B.pressed) return UserCommand::L2_B;
@@ -18,7 +19,16 @@ inline UserCommand userCommandFromGamepad(const unitree::common::Gamepad &pad)
     if (pad.R1.pressed && pad.left.pressed) return UserCommand::R1_LEFT;
     if (pad.R1.pressed && pad.right.pressed) return UserCommand::R1_RIGHT;
     if (pad.start.pressed) return UserCommand::START;
-    if (pad.R1.pressed) return UserCommand::R1;
+    if (pad.R1.pressed) {
+        // Keep the original decoding for every existing task. Protection wait
+        // must distinguish an unmapped combination from a physical release:
+        // otherwise R1+A followed by releasing only A could start recovery.
+        const bool otherHeld = pad.L1.pressed || pad.start.pressed || pad.select.pressed ||
+            pad.R2.pressed || pad.L2.pressed || pad.F1.pressed || pad.F2.pressed ||
+            pad.A.pressed || pad.B.pressed || pad.X.pressed || pad.Y.pressed ||
+            pad.up.pressed || pad.right.pressed || pad.down.pressed || pad.left.pressed;
+        return strictStandaloneR1 && otherHeld ? UserCommand::R1_OTHER : UserCommand::R1;
+    }
     if (pad.L2.pressed) return UserCommand::L2;
     if (pad.R2.pressed) return UserCommand::R2;
     return UserCommand::NONE;

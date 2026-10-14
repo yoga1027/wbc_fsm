@@ -42,6 +42,7 @@ private:
     uint8_t mode_machine_ = 0;
     UserCommand userCmd_ = UserCommand::NONE;
     RecoveryEntryLatch recoveryEntryLatch_;
+    bool strictStandaloneR1_ = false;
     UserValue userValue_;
     std::mutex stateMutex_;
     bool stateReady_ = false;

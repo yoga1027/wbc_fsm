@@ -9,6 +9,7 @@
 #include "FSM/State_MJAmp.h"
 #include "FSM/State_MJAmpRecovery.h"
 #include "FSM/State_LocoRecovery.h"
+#include "FSM/State_LocoRecovery2.h"
 #include "FSM/State_WBC.h"
 #include "common/enumClass.h"
 #include "control/CtrlComponents.h"
@@ -23,7 +24,9 @@ struct FSMStateList{
     State_MJAMP *mjamp;
     State_MJAMP_RECOVERY *mjampRecovery;
     State_LocoRecovery *locoRecovery = nullptr;
+    State_LocoRecovery2 *locoRecovery2 = nullptr;
     void deletePtr(){
+        delete locoRecovery2;
         delete locoRecovery;
         delete invalid;
         delete passive;

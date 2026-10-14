@@ -39,6 +39,7 @@ uint32_t crc32_core(uint32_t *ptr, uint32_t len)
 }
 
 IOSDK::IOSDK(const StartupOptions &options, const std::function<bool()> &cancelled)
+    : strictStandaloneR1_(options.locoRecovery2)
 {
     if (if_nametoindex(options.networkInterface.c_str()) == 0)
         throw std::runtime_error("Network interface does not exist: " + options.networkInterface);
@@ -188,7 +189,7 @@ void IOSDK::LowStateHandler(const void *message)
         mode_machine_ = low_state.mode_machine();
     }
 
-    userCmd_ = userCommandFromGamepad(gamepad_);
+    userCmd_ = userCommandFromGamepad(gamepad_, strictStandaloneR1_);
 
     userValue_.lx = -gamepad_.lx;
     userValue_.ly = gamepad_.ly;

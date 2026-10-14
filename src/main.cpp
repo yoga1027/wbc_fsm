@@ -54,6 +54,7 @@ int main(int argc, char **argv) {
                       << "  " << argv[0] << " --real --interface <robot-network-interface>\n"
                       << "Default: simulation, DDS domain 1. Real robot: domain 0 with verified motion service release.\n"
                       << "  --loco-auto-recovery: RL Loco+MJAmpRecovery; START then R2+B to enter.\n"
+                      << "  --loco-recovery2: RL Loco+MJAmpRecovery2; falls wait unloaded for a fresh R1 press.\n"
                       << "Startup implementation: handoff-v2 (stable confirmation, bounded RPC retry).\n"
                       << "Recovery: PASSIVE -> R2+X -> release buttons -> R2+Y. START is not required.\n";
             return 0;
@@ -70,6 +71,7 @@ int main(int argc, char **argv) {
         // Load all models/configs before touching the robot's motion service.
         CtrlComponents ctrlComp(nullptr);
         ctrlComp.locoAutoRecovery = options.locoAutoRecovery;
+        ctrlComp.locoRecovery2 = options.locoRecovery2;
         ctrlComp.ctrlPlatform = options.realRobot ? CtrlPlatform::REALROBOT : CtrlPlatform::MUJOCO;
         ctrlComp.dt = 0.02;
         ctrlComp.running = &running;

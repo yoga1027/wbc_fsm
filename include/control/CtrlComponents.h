@@ -29,6 +29,7 @@ public:
     bool *running;
     bool exitFlag;
     bool locoAutoRecovery = false;
+    bool locoRecovery2 = false;
     CtrlPlatform ctrlPlatform;
 
     void sendRecv(){

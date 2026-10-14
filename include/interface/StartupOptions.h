@@ -8,6 +8,7 @@ struct StartupOptions
     bool realRobot = false;
     bool help = false;
     bool locoAutoRecovery = false;
+    bool locoRecovery2 = false;
     std::string networkInterface = "lo";
     unsigned domainId() const { return realRobot ? 0 : 1; }
 
@@ -24,6 +25,10 @@ struct StartupOptions
                 if (result.locoAutoRecovery)
                     throw std::invalid_argument("Duplicate --loco-auto-recovery");
                 result.locoAutoRecovery = true;
+            } else if (arg == "--loco-recovery2") {
+                if (result.locoRecovery2)
+                    throw std::invalid_argument("Duplicate --loco-recovery2");
+                result.locoRecovery2 = true;
             } else if (arg == "--sim" || arg == "--real") {
                 if (modeSpecified) throw std::invalid_argument("Specify only one of --sim / --real");
                 modeSpecified = true;
@@ -39,6 +44,8 @@ struct StartupOptions
                 throw std::invalid_argument("Unknown argument: " + arg);
             }
         }
+        if (result.locoAutoRecovery && result.locoRecovery2)
+            throw std::invalid_argument("Select only one of --loco-auto-recovery / --loco-recovery2");
         if (!result.help && result.realRobot &&
             (!interfaceSpecified || result.networkInterface == "lo"))
             throw std::invalid_argument("Real robot requires --real --interface <robot-network-interface>, not lo");

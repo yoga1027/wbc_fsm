@@ -14,6 +14,9 @@ FSM::FSM(CtrlComponents *ctrlComp)
     if (_ctrlComp->locoAutoRecovery)
         _stateList.locoRecovery = new State_LocoRecovery(
             _ctrlComp, *_stateList.loco, *_stateList.mjampRecovery);
+    if (_ctrlComp->locoRecovery2)
+        _stateList.locoRecovery2 = new State_LocoRecovery2(
+            _ctrlComp, *_stateList.loco, *_stateList.mjampRecovery);
     _stateList.wbc = new State_WBC(_ctrlComp);
     initialize(); 
 }
@@ -34,6 +37,10 @@ void FSM::initialize(){
     if (_ctrlComp->locoAutoRecovery)
         std::cout << "[Task] RL Loco+MJAmpRecovery: START, wait for standing, then R2+B. "
                      "All LOCO entries use automatic recovery. Center sticks to enable walking." << std::endl;
+    if (_ctrlComp->locoRecovery2)
+        std::cout << "[Task] RL Loco+MJAmpRecovery2: START, wait for standing, then R2+B. "
+                     "Falls enter unloaded protection; release buttons, then press R1 to recover."
+                  << std::endl;
 }
 
 void FSM::run(){
@@ -43,7 +50,7 @@ void FSM::run(){
         _ctrlComp->sendRecv(); 
 
         // In the new task, manual stop also cancels a pending outer transition.
-        if (_ctrlComp->locoAutoRecovery &&
+        if ((_ctrlComp->locoAutoRecovery || _ctrlComp->locoRecovery2) &&
             (_ctrlComp->lowState->userCmd == UserCommand::L2_B ||
              _ctrlComp->lowState->userCmd == UserCommand::SELECT)) {
             _currentState->exit();
@@ -58,7 +65,9 @@ void FSM::run(){
         if(_mode == FSMMode::NORMAL){  
             _currentState->run();  
             _nextStateName = _currentState->checkChange();    
-            if (_ctrlComp->locoAutoRecovery && _nextStateName == FSMStateName::LOCO)
+            if (_ctrlComp->locoRecovery2 && _nextStateName == FSMStateName::LOCO)
+                _nextStateName = FSMStateName::LOCO_RECOVERY2;
+            else if (_ctrlComp->locoAutoRecovery && _nextStateName == FSMStateName::LOCO)
                 _nextStateName = FSMStateName::LOCO_RECOVERY;
             if(_nextStateName != _currentState->_stateName){  
                 _mode = FSMMode::CHANGE;  
@@ -79,7 +88,7 @@ void FSM::run(){
     }catch (const std::exception& e) {
         std::cerr << std::endl << "Caught exception: " << e.what() << std::endl;
         if (_currentState->_stateName == FSMStateName::MJAMP_RECOVERY ||
-            _ctrlComp->locoAutoRecovery) {
+            _ctrlComp->locoAutoRecovery || _ctrlComp->locoRecovery2) {
             // SELECT/exception ends the main loop before its next sendRecv().
             // Publish damping now instead of leaving the last policy target active.
             _stateList.passive->enter();
@@ -114,6 +123,9 @@ FSMState* FSM::getNextState(FSMStateName stateName){
     case FSMStateName::LOCO_RECOVERY:
         if (!_stateList.locoRecovery) throw std::runtime_error("Automatic recovery is not enabled");
         return _stateList.locoRecovery;
+    case FSMStateName::LOCO_RECOVERY2:
+        if (!_stateList.locoRecovery2) throw std::runtime_error("Recovery2 is not enabled");
+        return _stateList.locoRecovery2;
     default:
         return _stateList.invalid;
         break;

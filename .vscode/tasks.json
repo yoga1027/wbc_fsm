@@ -9,6 +9,15 @@
             "options": {"cwd": "${workspaceFolder}"},
             "problemMatcher": [],
             "presentation": {"reveal": "always", "panel": "dedicated"}
+        },
+        {
+            "label": "RL Loco+MJAmpRecovery2",
+            "type": "process",
+            "command": "bash",
+            "args": ["${workspaceFolder}/scripts/run_loco_recovery2.sh", "--sim"],
+            "options": {"cwd": "${workspaceFolder}"},
+            "problemMatcher": [],
+            "presentation": {"reveal": "always", "panel": "dedicated"}
         }
     ]
 }

@@ -33,6 +33,7 @@ enum class UserCommand
     R2_B, // back to loco from amp
     R2_X, // independent MJAMP recovery policy
     R2_Y, // start recovery policy after damping wait
+    R1_OTHER, // unmapped R1 combination in the protection-wait task
     
 };
 
@@ -67,6 +68,7 @@ enum class FSMStateName{
     MJAMP,
     MJAMP_RECOVERY,
     LOCO_RECOVERY,
+    LOCO_RECOVERY2,
 };
 
 #endif  // ENUMCLASS_H

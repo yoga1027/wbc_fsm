@@ -21,6 +21,7 @@ add_test(NAME recovery_state COMMAND recovery_state_test)
 
 add_library(fsm_test_runtime STATIC
     "${REPO_ROOT}/src/FSM/State_LocoRecovery.cpp"
+    "${REPO_ROOT}/src/FSM/State_LocoRecovery2.cpp"
     "${REPO_ROOT}/src/FSM/FSM.cpp"
     "${REPO_ROOT}/src/FSM/FSMState.cpp"
     "${REPO_ROOT}/src/FSM/State_MJAmpRecovery.cpp"
@@ -41,6 +42,14 @@ add_test(NAME recovery_fsm COMMAND recovery_fsm_test)
 add_executable(loco_recovery_fsm_test loco_recovery_fsm_test.cpp)
 target_link_libraries(loco_recovery_fsm_test PRIVATE fsm_test_runtime)
 add_test(NAME loco_recovery_fsm COMMAND loco_recovery_fsm_test)
+
+add_executable(loco_recovery2_state_test loco_recovery2_state_test.cpp)
+target_link_libraries(loco_recovery2_state_test PRIVATE fsm_test_runtime)
+add_test(NAME loco_recovery2_state COMMAND loco_recovery2_state_test)
+
+add_executable(loco_recovery2_fsm_test loco_recovery2_fsm_test.cpp)
+target_link_libraries(loco_recovery2_fsm_test PRIVATE fsm_test_runtime)
+add_test(NAME loco_recovery2_fsm COMMAND loco_recovery2_fsm_test)
 
 add_executable(startup_test startup_test.cpp)
 target_include_directories(startup_test PRIVATE "${REPO_ROOT}/include")
@@ -72,4 +81,9 @@ if(ENABLE_MUJOCO_RECOVERY_TEST)
     target_compile_definitions(loco_recovery_physics_test PRIVATE RECOVERY_TEST_SCENE="${RECOVERY_TEST_SCENE}")
     target_link_libraries(loco_recovery_physics_test PRIVATE fsm_test_runtime "${MUJOCO_LIBRARY}")
     add_test(NAME loco_recovery_physics COMMAND loco_recovery_physics_test)
+    add_executable(loco_recovery2_physics_test loco_recovery2_physics_test.cpp)
+    target_include_directories(loco_recovery2_physics_test PRIVATE "${MUJOCO_INCLUDE_DIR}")
+    target_compile_definitions(loco_recovery2_physics_test PRIVATE RECOVERY_TEST_SCENE="${RECOVERY_TEST_SCENE}")
+    target_link_libraries(loco_recovery2_physics_test PRIVATE fsm_test_runtime "${MUJOCO_LIBRARY}")
+    add_test(NAME loco_recovery2_physics COMMAND loco_recovery2_physics_test)
 endif()

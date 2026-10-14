@@ -103,3 +103,29 @@ PD estimates exclude actuator saturation and are not measured motor torque.
 Override `MUJOCO_ROOT` / `RECOVERY_TEST_SCENE` if the simulator checkout is elsewhere.
 The test loads the current `config/mjamp_recovery.json` model. This regression
 covers these simulated disturbances, not all falls or hardware behavior.
+
+## Loco recovery2 with manual R1 activation
+
+`loco_recovery2_state_test` and `loco_recovery2_fsm_test` exercise the independent
+`--loco-recovery2` task. They check persistent zero-PD protection, fallen-entry
+handling, rejection of pre-held/masked/combined R1 commands, release before a fresh
+R1 activation, ignored walking/mode commands while waiting, fresh Recovery history,
+zero recovery velocity commands, held R1 without repeated resets, stable return,
+re-falls during return, ordinary policy restoration, faults and manual stop priority.
+The FSM test checks startup completion, routing, next-cycle protection publication,
+independent manual recovery, pending-transition stop cancellation and SELECT damping.
+It also exercises the real gamepad decoder with R1 plus each of the other 15
+buttons, stop priorities, and release of only an additional button while R1 remains
+held. Strict standalone-R1 decoding is enabled only for recovery2; legacy decoding
+is checked independently.
+Source review confirms that the protection branch does not invoke either ONNX policy;
+the output tests do not count inference calls.
+
+With `ENABLE_MUJOCO_RECOVERY_TEST=ON`, `loco_recovery2_physics_test` also tests
+physical fall, unloaded waiting, manual R1 activation, get-up, return and walking
+in a private MuJoCo scene. Forward, backward and sideways 250 N pushes last 0.5 s.
+Each case must remain unloaded for at least 3 s with the default `protection_kd=0`,
+reject a held R1, then recover after release/new press and walk for 5 s.
+It runs the currently configured model without DDS.
+Protection uses enabled motors with zero PD/torque commands, not an emulation of
+electrical driver shutdown. These are simulation checks, not hardware validation.

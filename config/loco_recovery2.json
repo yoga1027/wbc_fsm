@@ -1,0 +1,17 @@
+{
+    "fallen_tilt_rad": 0.95993109,
+    "hard_fallen_tilt_rad": 1.04719755,
+    "fallen_hold_seconds": 0.04,
+    "protection_kd": 0.0,
+    "stable_tilt_rad": 0.20943951,
+    "stable_angular_velocity": 0.4,
+    "stable_joint_velocity": 0.8,
+    "stable_hold_seconds": 0.8,
+    "minimum_recovery_seconds": 1.0,
+    "recovery_warning_seconds": 15.0,
+    "return_blend_seconds": 0.3,
+    "command_ramp_seconds": 0.5,
+    "stick_dead_zone": 0.1,
+    "standing_joint_min": [-1.0, -0.6, -1.5, -0.09, -0.9, -0.3, -1.0, -0.6, -1.5, -0.09, -0.9, -0.3],
+    "standing_joint_max": [0.5, 0.6, 1.5, 1.15, 0.5, 0.3, 0.5, 0.6, 1.5, 1.15, 0.5, 0.3]
+}

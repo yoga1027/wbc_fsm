@@ -86,10 +86,17 @@ int main()
         require(!sim.realRobot && sim.domainId() == 1 && sim.networkInterface == "lo",
                 "Default startup must be local simulation");
         const auto real = parse({"wbc_fsm", "--real", "--interface", "enp3s0"});
-        require(!sim.locoAutoRecovery, "Original task enabled automatic recovery");
+        require(!sim.locoAutoRecovery && !sim.locoRecovery2, "Original task enabled a recovery task");
         const auto combined = parse({"wbc_fsm", "--loco-auto-recovery"});
-        require(combined.locoAutoRecovery && !combined.realRobot,
+        require(combined.locoAutoRecovery && !combined.locoRecovery2 && !combined.realRobot,
                 "Combined task must be opt-in and default to simulation");
+        const auto recovery2 = parse({"wbc_fsm", "--sim", "--loco-recovery2"});
+        require(recovery2.locoRecovery2 && !recovery2.locoAutoRecovery && !recovery2.realRobot &&
+                recovery2.domainId() == 1,
+                "Recovery2 must be independent and default to simulation");
+        const auto realRecovery2 = parse({"wbc_fsm", "--loco-recovery2", "--real", "--interface", "enp3s0"});
+        require(realRecovery2.locoRecovery2 && realRecovery2.realRobot && realRecovery2.domainId() == 0,
+                "Recovery2 changed hardware startup selection");
         require(real.realRobot && real.domainId() == 0 && real.networkInterface == "enp3s0",
                 "Real mode/domain/interface disagree");
         const auto simNet = parse({"wbc_fsm", "--sim", "--interface", "enp3s0"});
@@ -98,7 +105,11 @@ int main()
                  {"wbc_fsm", "--real"}, {"wbc_fsm", "--real", "--interface", "lo"},
                  {"wbc_fsm", "--real", "--sim"}, {"wbc_fsm", "--interface"},
                  {"wbc_fsm", "--interface", "--real"}, {"wbc_fsm", "--reel"},
-                 {"wbc_fsm", "--loco-auto-recovery", "--loco-auto-recovery"}}) {
+                 {"wbc_fsm", "--loco-auto-recovery", "--loco-auto-recovery"},
+                 {"wbc_fsm", "--loco-recovery2", "--loco-recovery2"},
+                 {"wbc_fsm", "--loco-auto-recovery", "--loco-recovery2"},
+                 {"wbc_fsm", "--loco-recovery2", "--loco-auto-recovery"},
+                 {"wbc_fsm", "--loco-recovery2", "--real"}}) {
             bool rejected = false;
             try { parse(args); } catch (const std::invalid_argument &) { rejected = true; }
             require(rejected, "Invalid startup arguments accepted");
